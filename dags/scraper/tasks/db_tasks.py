@@ -2,39 +2,70 @@ from airflow.decorators import task
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from scraper.models.product import Product
 from airflow.models import Variable
+import datetime
+import os
 
 S3URL = Variable.get("s3_url")
 
 def insert_product(product:Product):
+    today = datetime.date.today()
+
     hook = PostgresHook(postgres_conn_id="products")
     conn = hook.get_conn()
     cur = conn.cursor()
     
     cur.execute("""
-        INSERT INTO products (id, name, brand, unit, base_price_value, base_price_unit, market, valid_from, valid_to, info)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (id) DO NOTHING
+        INSERT INTO products (id, name, brand, unit, base_price_value, base_price_unit, market, valid_from, valid_to, info, created_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (id) DO UPDATE
+        SET name = EXCLUDED.name,
+            brand = EXCLUDED.brand,
+            unit = EXCLUDED.unit,
+            base_price_value = EXCLUDED.base_price_value,
+            base_price_unit = EXCLUDED.base_price_unit,
+            market = EXCLUDED.market,
+            valid_from = EXCLUDED.valid_from,
+            valid_to = EXCLUDED.valid_to,
+            info = EXCLUDED.info,
+            created_at = EXCLUDED.created_at;
     """, (
         product['id'], product['name'], product['brand'], product['unit'],
         product['base_price_value'], product['base_price_unit'], product['market'],
-        product['valid_from'], product['valid_to'], product['info']
+        product['valid_from'], product['valid_to'], product['info'], today
     ))
-    
+
     for price in product['prices']:
         cur.execute("""
             INSERT INTO prices (product_id, price_type, amount, condition)
             VALUES (%s, %s, %s, %s)
+            ON CONFLICT (product_id, price_type) DO UPDATE
+            SET amount = EXCLUDED.amount,
+                condition = EXCLUDED.condition;
         """, (product['id'], price['price_type'], price['amount'], price['condition']))
-    
+
     for disc in product['discount_percents']:
         cur.execute("""
             INSERT INTO discounts (product_id, discount_type, amount, condition)
             VALUES (%s, %s, %s, %s)
+            ON CONFLICT (product_id, discount_type) DO UPDATE
+            SET amount = EXCLUDED.amount,
+                condition = EXCLUDED.condition;
         """, (product['id'], disc['discount_type'], disc['amount'], disc['condition']))
-    
+
     conn.commit()
     cur.close()
     conn.close()
+
+@task
+def init_db(conn_id="my_postgres"):
+    DAG_DIR = os.path.dirname(os.path.realpath(__file__))
+
+    sql_file = os.path.join(DAG_DIR, "scraper/sql/create_tables.sql")
+    with open(sql_file, "r") as f:
+        sql = f.read()
+
+    hook = PostgresHook(postgres_conn_id=conn_id)
+    hook.run(sql)
 
 @task
 def load_products_to_db(products):

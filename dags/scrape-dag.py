@@ -4,6 +4,7 @@ from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperato
 from airflow.models import Variable
 
 from datetime import datetime, timedelta
+from dags.scraper.models import product
 from scraper.tasks import db_tasks, s3_tasks, transform_tasks
 
 default_args = {
@@ -39,6 +40,8 @@ with DAG(
 
     files = s3_tasks.fetch_s3_file_list()
     products = transform_tasks.process_single_file.expand(key=files)
-    db_tasks.load_products_to_db.expand(products=products)
+    init_db = db_tasks.init_db()
+    load = db_tasks.load_products_to_db.expand(products=products)
 
     run_container.set_downstream(files)
+    load.set_upstream(init_db)

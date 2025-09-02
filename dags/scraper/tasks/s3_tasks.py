@@ -19,10 +19,25 @@ def fetch_s3_file_list():
     )
 
     response = s3.list_objects_v2(Bucket=bucket, Prefix="raw/")
-    keys = [obj["Key"] for obj in response.get("Contents", [])]
+
+    if "Contents" not in response:
+        return []
 
     today = datetime.today()
     today_filter = f"year={today.year}/month={today.strftime('%m')}/day={today.strftime('%d')}/"
-    json_files = [k for k in keys if k.endswith(".json") and today_filter in k]
 
-    return json_files
+    objects = [
+        obj for obj in response["Contents"]
+        if obj["Key"].endswith(".json") and today_filter in obj["Key"]
+    ]
+
+    if not objects:
+        return []
+
+    latest_files = {}
+    for obj in objects:
+        marketid = obj["Key"].split("/")[2]
+        if marketid not in latest_files or obj["LastModified"] > latest_files[marketid]["LastModified"]:
+            latest_files[marketid] = obj
+
+    return [obj["Key"] for obj in latest_files.values()]
