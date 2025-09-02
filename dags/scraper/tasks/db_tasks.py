@@ -8,73 +8,6 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 S3URL = Variable.get("s3_url")
 
 
-def insert_product(product):
-    today = datetime.date.today()
-
-    hook = PostgresHook(postgres_conn_id="products")
-    conn = hook.get_conn()
-    cur = conn.cursor()
-
-    cur.execute(
-        """
-        INSERT INTO products (id, name, brand, unit, base_price_value, base_price_unit, market, valid_from, valid_to, info, created_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (id) DO UPDATE
-        SET name = EXCLUDED.name,
-            brand = EXCLUDED.brand,
-            unit = EXCLUDED.unit,
-            base_price_value = EXCLUDED.base_price_value,
-            base_price_unit = EXCLUDED.base_price_unit,
-            market = EXCLUDED.market,
-            valid_from = EXCLUDED.valid_from,
-            valid_to = EXCLUDED.valid_to,
-            info = EXCLUDED.info,
-            created_at = EXCLUDED.created_at;
-    """,
-        (
-            product["id"],
-            product["name"],
-            product["brand"],
-            product["unit"],
-            product["base_price_value"],
-            product["base_price_unit"],
-            product["market"],
-            product["valid_from"],
-            product["valid_to"],
-            product["info"],
-            today,
-        ),
-    )
-
-    for price in product["prices"]:
-        cur.execute(
-            """
-            INSERT INTO prices (product_id, price_type, amount, condition)
-            VALUES (%s, %s, %s, %s)
-            ON CONFLICT (product_id, price_type) DO UPDATE
-            SET amount = EXCLUDED.amount,
-                condition = EXCLUDED.condition;
-        """,
-            (product["id"], price["price_type"], price["amount"], price["condition"]),
-        )
-
-    for disc in product["discount_percents"]:
-        cur.execute(
-            """
-            INSERT INTO discounts (product_id, discount_type, amount, condition)
-            VALUES (%s, %s, %s, %s)
-            ON CONFLICT (product_id, discount_type) DO UPDATE
-            SET amount = EXCLUDED.amount,
-                condition = EXCLUDED.condition;
-        """,
-            (product["id"], disc["discount_type"], disc["amount"], disc["condition"]),
-        )
-
-    conn.commit()
-    cur.close()
-    conn.close()
-
-
 @task
 def init_db(conn_id="my_postgres"):
     DAG_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -88,9 +21,100 @@ def init_db(conn_id="my_postgres"):
 
 
 @task
-def load_products_to_db(products):
-    for product in products:
-        insert_product(product)
+def load_products_to_db(products: list[dict]):
+
+    today = datetime.date.today()
+    hook = PostgresHook(postgres_conn_id="products")
+
+    with hook.get_conn() as conn:
+        with conn.cursor() as cur:
+
+            product_records = [
+                (
+                    p["id"],
+                    p["name"],
+                    p.get("brand"),
+                    p["unit"],
+                    p.get("base_price_value"),
+                    p.get("base_price_unit"),
+                    p.get("market"),
+                    p.get("valid_from"),
+                    p.get("valid_to"),
+                    p.get("info"),
+                    today,
+                )
+                for p in products
+            ]
+
+            cur.executemany(
+                """
+                INSERT INTO products 
+                    (id, name, brand, unit, base_price_value, base_price_unit, market, valid_from, valid_to, info, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE
+                SET name = EXCLUDED.name,
+                    brand = EXCLUDED.brand,
+                    unit = EXCLUDED.unit,
+                    base_price_value = EXCLUDED.base_price_value,
+                    base_price_unit = EXCLUDED.base_price_unit,
+                    market = EXCLUDED.market,
+                    valid_from = EXCLUDED.valid_from,
+                    valid_to = EXCLUDED.valid_to,
+                    info = EXCLUDED.info,
+                    created_at = EXCLUDED.created_at;
+                """,
+                product_records,
+            )
+
+            price_records = []
+            for p in products:
+                for price in p.get("prices", []):
+                    price_records.append(
+                        (
+                            p["id"],
+                            price["price_type"],
+                            price["amount"],
+                            price.get("condition"),
+                        )
+                    )
+
+            if price_records:
+                cur.executemany(
+                    """
+                    INSERT INTO prices (product_id, price_type, amount, condition)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (product_id, price_type) DO UPDATE
+                    SET amount = EXCLUDED.amount,
+                        condition = EXCLUDED.condition;
+                    """,
+                    price_records,
+                )
+
+            discount_records = []
+            for p in products:
+                for disc in p.get("discount_percents", []):
+                    discount_records.append(
+                        (
+                            p["id"],
+                            disc["discount_type"],
+                            disc["amount"],
+                            disc.get("condition"),
+                        )
+                    )
+
+            if discount_records:
+                cur.executemany(
+                    """
+                    INSERT INTO discounts (product_id, discount_type, amount, condition)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (product_id, discount_type) DO UPDATE
+                    SET amount = EXCLUDED.amount,
+                        condition = EXCLUDED.condition;
+                    """,
+                    discount_records,
+                )
+
+        conn.commit()
 
 
 @task
