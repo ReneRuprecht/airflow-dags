@@ -1,9 +1,10 @@
-from airflow.decorators import task
-from airflow.providers.postgres.hooks.postgres import PostgresHook
-from scraper.models.product import Product
-from airflow.models import Variable
 import datetime
 import os
+
+from airflow.decorators import task
+from airflow.models import Variable
+from airflow.providers.postgres.hooks.postgres import PostgresHook
+from scraper.models.product import Product
 
 S3URL = Variable.get("s3_url")
 

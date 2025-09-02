@@ -1,7 +1,9 @@
+import json
+
+import boto3
 from airflow.decorators import task
-import boto3, json
-from scraper.models.product import Product
 from airflow.models import Variable
+from scraper.models.product import Product
 
 
 @task

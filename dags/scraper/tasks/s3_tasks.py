@@ -1,6 +1,7 @@
-from airflow.decorators import task
-import boto3
 from datetime import datetime
+
+import boto3
+from airflow.decorators import task
 from airflow.models import Variable
 
 

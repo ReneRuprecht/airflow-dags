@@ -1,9 +1,8 @@
-from airflow import DAG
-from datetime import datetime
-from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
-from airflow.models import Variable
-
 from datetime import datetime, timedelta
+
+from airflow import DAG
+from airflow.models import Variable
+from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
 from scraper.tasks import db_tasks, s3_tasks, transform_tasks
 
 default_args = {
