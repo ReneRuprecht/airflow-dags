@@ -3,6 +3,7 @@ import boto3, json
 from scraper.models.product import Product
 from airflow.models import Variable
 
+
 @task
 def process_single_file(key: str):
     bucket = "scraper-data"
@@ -20,11 +21,10 @@ def process_single_file(key: str):
     print(key)
 
     obj = s3.get_object(Bucket=bucket, Key=key)
-    data = json.load(obj['Body'])
+    data = json.load(obj["Body"])
 
-    s3_products= data['products']
+    s3_products = data["products"]
 
     products = [Product(**p).model_dump(exclude_unset=True) for p in s3_products]
 
     return products
-

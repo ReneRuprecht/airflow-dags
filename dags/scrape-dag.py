@@ -4,14 +4,13 @@ from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperato
 from airflow.models import Variable
 
 from datetime import datetime, timedelta
-from dags.scraper.models import product
 from scraper.tasks import db_tasks, s3_tasks, transform_tasks
 
 default_args = {
     "owner": "airflow",
     "start_date": datetime(2025, 8, 22),
     "retries": 1,
-    "retry_delay": timedelta(minutes=5)
+    "retry_delay": timedelta(minutes=5),
 }
 
 S3URL = Variable.get("s3_url")
@@ -32,7 +31,7 @@ with DAG(
         name="scrape-data",
         namespace="airflow",
         image=f"{DOCKER_REGISTRY}/scraper:latest",
-        is_delete_operator_pod=True,
+        on_finish_action="delete_pod",
         get_logs=True,
     ).expand(
         env_vars=data,

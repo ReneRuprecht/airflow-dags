@@ -3,6 +3,7 @@ import boto3
 from datetime import datetime
 from airflow.models import Variable
 
+
 @task
 def fetch_s3_file_list():
     bucket = "scraper-data"
@@ -24,10 +25,13 @@ def fetch_s3_file_list():
         return []
 
     today = datetime.today()
-    today_filter = f"year={today.year}/month={today.strftime('%m')}/day={today.strftime('%d')}/"
+    today_filter = (
+        f"year={today.year}/month={today.strftime('%m')}/day={today.strftime('%d')}/"
+    )
 
     objects = [
-        obj for obj in response["Contents"]
+        obj
+        for obj in response["Contents"]
         if obj["Key"].endswith(".json") and today_filter in obj["Key"]
     ]
 
@@ -37,7 +41,10 @@ def fetch_s3_file_list():
     latest_files = {}
     for obj in objects:
         marketid = obj["Key"].split("/")[2]
-        if marketid not in latest_files or obj["LastModified"] > latest_files[marketid]["LastModified"]:
+        if (
+            marketid not in latest_files
+            or obj["LastModified"] > latest_files[marketid]["LastModified"]
+        ):
             latest_files[marketid] = obj
 
     return [obj["Key"] for obj in latest_files.values()]

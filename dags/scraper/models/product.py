@@ -1,15 +1,18 @@
 from pydantic import BaseModel
 from typing import List, Optional
 
+
 class Price(BaseModel):
     price_type: str
     amount: str
     condition: Optional[str] = None
 
+
 class Discount(BaseModel):
     discount_type: str
     amount: str
     condition: Optional[str] = None
+
 
 class Product(BaseModel):
     id: str
