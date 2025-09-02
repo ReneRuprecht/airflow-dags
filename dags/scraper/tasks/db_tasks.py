@@ -80,7 +80,7 @@ def insert_product(product: Product):
 def init_db(conn_id="my_postgres"):
     DAG_DIR = os.path.dirname(os.path.realpath(__file__))
 
-    sql_file = os.path.join(DAG_DIR, "scraper/sql/create_tables.sql")
+    sql_file = os.path.join(DAG_DIR, "../sql/create_tables.sql")
     with open(sql_file, "r") as f:
         sql = f.read()
 
